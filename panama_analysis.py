@@ -10,7 +10,7 @@ This program is free software under the GNU General Public License
 @author: Brendan Harmon (brendanharmon@gmail.com)
 """
 
-#import os
+import os
 import sys
 import csv
 import atexit
@@ -34,6 +34,9 @@ env['GRASS_MESSAGE_FORMAT'] = 'standard'
 gisdbase = env['GISDBASE']
 location = env['LOCATION_NAME']
 mapset = env['MAPSET']
+
+# set ouput paths
+results = os.path.join(gisdbase, location, 'results')
 
 # create lists of river names
 rivers = ['Rio Trinidad',
@@ -63,9 +66,9 @@ conditioned_elevation = 'conditioned_elevation'
 srtm = 'panama_90m_dem@PERMANENT'
 alos_gdsm = 'panama_30m_dem@PERMANENT'
 relief = 'relief'
-zscale = 3
+zscale = 1.5
 shaded_relief = 'shaded_relief'
-brighten = 20
+brighten = 36
 skyview = 'skyview'
 colorized_skyview = 'colorized_skyview'
 accumulation = 'accumulation'
@@ -88,7 +91,15 @@ def main():
 
     # extract_basins()
 
-    basin_analysis()
+    basin_topographic_analysis()
+
+    # basin_hydrologic_analysis()
+
+    # basin_landcover_analysis()
+
+    # basin_climate_analysis()
+
+    # basin_morphometric_analysis()
 
     atexit.register(cleanup)
     sys.exit(0)
@@ -219,20 +230,18 @@ def extract_basins():
             output=river_mapnames[index],
             overwrite=overwrite)
 
-def basin_analysis():
+def basin_topographic_analysis():
     """compute topographic, hydrologic, and landcover parameters
     for each basin"""
 
     for river in river_mapnames:
 
-        local_streams = river + '_streams'
         local_elevation = river + '_elevation'
-        local_direction = river + '_direction'
-        local_accumulation = river + '_accumulation'
         local_relief = river + '_relief'
         local_shaded_relief = river + '_shaded_relief'
         local_skyview = river + '_skyview'
         local_colorized_skyview = river + '_colorized_skyview'
+        local_shaded_skyview = river + '_shaded_skyview'
         local_slope = river + '_slope'
         local_aspect = river + '_aspect'
         local_contours = river + '_contours'
@@ -251,19 +260,16 @@ def basin_analysis():
             expression='{local_elevation} = {elevation}'.format(local_elevation=local_elevation,
                 elevation=elevation),
             overwrite=overwrite)
-
-        # clip local flow accumulation
-        gscript.run_command('r.mapcalc',
-            expression='{local_accumulation} = {accumulation}'.format(local_accumulation=local_accumulation,
-                accumulation=accumulation),
-            overwrite=overwrite)
+        gscript.run_command('r.colors',
+            map=local_elevation,
+            color="elevation")
 
         # compute local slope and aspect
         gscript.run_command('r.slope.aspect',
             elevation=local_elevation,
             slope=local_slope,
-            aspect=local_aspect
-            overwrite=True)
+            aspect=local_aspect,
+            overwrite=overwrite)
 
         # compute local contours
         gscript.run_command('r.contour',
@@ -292,14 +298,96 @@ def basin_analysis():
             colorized_output=local_colorized_skyview,
             overwrite=overwrite)
 
+        # composite relief and skyview factor
+        gscript.run_command('r.shade',
+            shade=local_relief,
+            color=local_colorized_skyview,
+            output=local_shaded_skyview,
+            brighten=brighten,
+            overwrite=overwrite)
 
+        try:
+            # remove mask
+            gscript.run_command('r.mask', raster='MASK', flags='r')
+        except CalledModuleError:
+            pass
 
+def basin_landcover_analysis():
+    """compute landcover parameters for each basin"""
 
+    for river in river_mapnames:
 
+        # set region
+        gscript.run_command('g.region',
+            vector=river,
+            res=res)
+
+        # set mask
+        gscript.run_command('r.mask',
+            vector=river)
 
         # clip local landcover
 
+        try:
+            # remove mask
+            gscript.run_command('r.mask', raster='MASK', flags='r')
+        except CalledModuleError:
+            pass
+
+
+def basin_climate_analysis():
+    """compute climatic parameters for each basin"""
+
+    for river in river_mapnames:
+
+        # set region
+        gscript.run_command('g.region',
+            vector=river,
+            res=res)
+
+        # set mask
+        gscript.run_command('r.mask',
+            vector=river)
+
         # clip climate data
+
+        try:
+            # remove mask
+            gscript.run_command('r.mask', raster='MASK', flags='r')
+        except CalledModuleError:
+            pass
+
+
+def basin_hydrologic_analysis():
+    """compute hydrologic parameters for each basin"""
+
+    for river in river_mapnames:
+
+        local_elevation = river + '_elevation'
+        local_streams = river + '_streams'
+        local_direction = river + '_direction'
+        local_accumulation = river + '_accumulation'
+        local_distance = river + '_distance'
+        local_direction = river + '_direction'
+        local_difference = river + '_difference'
+        local_attributes = river + '_attributes'
+        local_order = river + '_order'
+        local_stats = os.path.join(results, river + '_stats.csv')
+
+        # set region
+        gscript.run_command('g.region',
+            vector=river,
+            res=res)
+
+        # set mask
+        gscript.run_command('r.mask',
+            vector=river)
+
+        # clip local flow accumulation
+        gscript.run_command('r.mapcalc',
+            expression='{local_accumulation} = {accumulation}'.format(local_accumulation=local_accumulation,
+                accumulation=accumulation),
+            overwrite=overwrite)
 
         # extract stream network
         gscript.run_command('r.stream.extract',
@@ -313,26 +401,34 @@ def basin_analysis():
             overwrite=overwrite)
 
         # compute stream distance
+        gscript.run_command('r.stream.distance',
+            stream_rast=local_streams,
+            direction=local_direction,
+            elevation=local_elevation,
+            distance=local_distance,
+            difference=local_difference,
+            memory=memory,
+            overwrite=overwrite)
 
         # compute stream order
+        gscript.run_command('r.stream.order',
+            stream_rast=local_streams,
+            direction=local_direction,
+            elevation=local_elevation,
+            accumulation=local_accumulation,
+            stream_vect=local_attributes,
+            strahler=local_order,
+            memory=memory,
+            overwrite=overwrite)
 
         # compute stream stats
-
-
-
-        #gscript.run_command('',)
-
-        # clip topography, landcover, and climate data to basins
-        # compute stream parameters
-        # compute statistics for each watershed
-            # compute stats
-                # elevation
-                # landcover
-                #
-            # export statistics
-            # render 2d maps
-            # render 3d maps
-
+        gscript.run_command('r.stream.stats',
+            stream_rast=local_streams,
+            direction=local_direction,
+            elevation=local_elevation,
+            output=local_stats,
+            memory=memory,
+            overwrite=overwrite)
 
         try:
             # remove mask
@@ -340,6 +436,62 @@ def basin_analysis():
         except CalledModuleError:
             pass
 
+def basin_morphometric_analysis():
+    """compute morphometric parameters for each basin"""
+
+    # try to install dependencies
+    try:
+        gscript.run_command('g.extension',
+            extension='r.width.funct',
+            operation='add')
+    except CalledModuleError:
+        pass
+    try:
+        gscript.run_command('g.extension',
+            extension='r.hypso',
+            operation='add')
+    except CalledModuleError:
+        pass
+    try:
+        gscript.run_command('g.extension',
+            extension='r.basin',
+            operation='add')
+    except CalledModuleError:
+        pass
+
+    for index, river in enumerate(river_mapnames):
+        local_elevation = river + '_elevation'
+
+        # set region
+        gscript.run_command('g.region',
+            vector=river,
+            res=res)
+
+        # set mask
+        gscript.run_command('r.mask',
+            vector=river)
+
+        # find stream gage station coordinates
+        coor = gscript.read_command('v.out.ascii',
+            input=stations,
+            format='point',
+            separator='comma',
+            flags='r')
+        coor_list = coor.split(',')
+
+        # morphometric characterization
+        gscript.run_command('r.basin',
+            map=local_elevation,
+            prefix=river,
+            coordinates=[coor_list[0], coor_list[1]],
+            dir=results,
+            threshold=threshold)
+
+        try:
+            # remove mask
+            gscript.run_command('r.mask', raster='MASK', flags='r')
+        except CalledModuleError:
+            pass
 
 def dependencies():
     """try to install required add-ons"""

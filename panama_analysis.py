@@ -35,7 +35,10 @@ gisdbase = env['GISDBASE']
 location = env['LOCATION_NAME']
 mapset = env['MAPSET']
 
-# set ouput paths
+# set input and ouput paths
+landcover_recode = os.path.join(gisdbase, location, 'landcover_recode.txt')
+landcover_color = os.path.join(gisdbase, location, 'landcover_color.txt')
+landcover_categories = os.path.join(gisdbase, location, 'landcover_categories.txt')
 results = os.path.join(gisdbase, location, 'results')
 
 # create lists of river names
@@ -70,7 +73,9 @@ zscale = 1.5
 shaded_relief = 'shaded_relief'
 brighten = 36
 skyview = 'skyview'
+skyview_brighten = 50
 colorized_skyview = 'colorized_skyview'
+shaded_skyview = 'shaded_skyview'
 accumulation = 'accumulation'
 reference_stations = 'stations@PERMANENT'
 stations = 'stations'
@@ -80,6 +85,14 @@ streams = 'streams'
 direction = 'direction'
 basins = 'basins'
 step = 50
+input_landcover = 'panama_300m_landcover'
+landcover = 'landcover'
+
+# rendering parameters
+width = 1500
+height = 1000
+fontsize = 16
+legend_coord = (2, 42, 2, 4)
 
 def main():
 
@@ -89,9 +102,13 @@ def main():
 
     # hydrological_modeling()
 
+    # landcover_analysis()
+
+    # climate_analysis()
+
     # extract_basins()
 
-    basin_topographic_analysis()
+    # basin_topographic_analysis()
 
     # basin_hydrologic_analysis()
 
@@ -100,6 +117,12 @@ def main():
     # basin_climate_analysis()
 
     # basin_morphometric_analysis()
+
+    # render()
+
+    # render_basins()
+
+    stats()
 
     atexit.register(cleanup)
     sys.exit(0)
@@ -129,13 +152,12 @@ def topographic_analysis():
         memory=memory,
         overwrite=overwrite)
 
-    # compute shaded relief
+    # compute relief
     gscript.run_command('r.relief',
         input=elevation,
         output=relief,
         zscale=zscale,
         overwrite=overwrite)
-
     gscript.run_command('r.shade',
         shade=relief,
         color=elevation,
@@ -143,11 +165,20 @@ def topographic_analysis():
         brighten=brighten,
         overwrite=overwrite)
 
-    # gscript.run_command('r.skyview',
-    #     input=elevation,
-    #     output=skyview,
-    #     colorized_output=colorized_skyview,
-    #     overwrite=overwrite)
+    # compute skyview factor
+    gscript.run_command('r.skyview',
+        input=elevation,
+        output=skyview,
+        colorized_output=colorized_skyview,
+        overwrite=overwrite)
+
+    # compute shaded skyview factor
+    gscript.run_command('r.shade',
+        shade=relief,
+        color=colorized_skyview,
+        output=shaded_skyview,
+        brighten=skyview_brighten,
+        overwrite=overwrite)
 
 def hydrological_modeling():
     """compute stream network and basins"""
@@ -210,6 +241,35 @@ def hydrological_modeling():
         flags='s',
         overwrite=overwrite)
 
+def landcover_analysis():
+    """process landcover data"""
+
+    # set region
+    gscript.run_command('g.region',
+        n=n,
+        s=s,
+        e=e,
+        w=w,
+        res=res)
+
+    # recode landcover
+    gscript.run_command('r.recode',
+        input=input_landcover,
+        output=landcover,
+        rules=landcover_recode,
+        overwrite=overwrite)
+
+    # set color table
+    gscript.run_command('r.colors',
+        map=landcover,
+        rules=landcover_color)
+
+    # define categories
+    gscript.run_command('r.category',
+        map=landcover,
+        separator='pipe',
+        rules=landcover_categories)
+
 def extract_basins():
     """extract each basin by name"""
 
@@ -231,8 +291,7 @@ def extract_basins():
             overwrite=overwrite)
 
 def basin_topographic_analysis():
-    """compute topographic, hydrologic, and landcover parameters
-    for each basin"""
+    """compute topographic parameters for each basin"""
 
     for river in river_mapnames:
 
@@ -303,7 +362,7 @@ def basin_topographic_analysis():
             shade=local_relief,
             color=local_colorized_skyview,
             output=local_shaded_skyview,
-            brighten=brighten,
+            brighten=skyview_brighten,
             overwrite=overwrite)
 
         try:
@@ -317,6 +376,10 @@ def basin_landcover_analysis():
 
     for river in river_mapnames:
 
+        local_landcover = river + '_landcover'
+        local_shaded_skyview = river + '_shaded_skyview'
+        local_shaded_landcover = river + '_shaded_landcover'
+
         # set region
         gscript.run_command('g.region',
             vector=river,
@@ -327,6 +390,29 @@ def basin_landcover_analysis():
             vector=river)
 
         # clip local landcover
+        gscript.run_command('r.mapcalc',
+            expression='{local_landcover} = {landcover}'.format(local_landcover=local_landcover,
+                landcover=landcover),
+            overwrite=overwrite)
+
+        # set color table
+        gscript.run_command('r.colors',
+            map=local_landcover,
+            rules=landcover_color)
+
+        # define categories
+        gscript.run_command('r.category',
+            map=local_landcover,
+            separator='pipe',
+            rules=landcover_categories)
+
+        # landcover with shaded relief
+        gscript.run_command('r.shade',
+            shade=local_shaded_skyview,
+            color=local_landcover,
+            output=local_shaded_landcover,
+            brighten=skyview_brighten,
+            overwrite=overwrite)
 
         try:
             # remove mask
@@ -421,6 +507,11 @@ def basin_hydrologic_analysis():
             memory=memory,
             overwrite=overwrite)
 
+        # set color table
+        gscript.run_command('r.colors',
+            map=local_order,
+            color='water')
+
         # compute stream stats
         gscript.run_command('r.stream.stats',
             stream_rast=local_streams,
@@ -493,6 +584,188 @@ def basin_morphometric_analysis():
         except CalledModuleError:
             pass
 
+
+def render():
+    """render maps of the study area"""
+
+    # set region
+    gscript.run_command('g.region',
+        n=n,
+        s=s,
+        e=e,
+        w=w,
+        res=res)
+
+    # render shaded relief with streams
+    gscript.run_command('d.mon',
+        start=driver,
+        width=width,
+        height=height,
+        output=os.path.join(results, shaded_relief+".png"),
+        overwrite=overwrite)
+    gscript.run_command('d.rast',
+        map=shaded_relief)
+    gscript.run_command('d.vect',
+        map=streams,
+        display='shape',
+        width=2,
+        #icon='basic/circle',
+        size=0,
+        color='blue')
+    gscript.run_command('d.legend',
+        raster=elevation,
+        fontsize=fontsize,
+        at=legend_coord)
+    gscript.run_command('d.mon', stop=driver)
+
+def render_basins():
+    """render maps for each basin"""
+
+    for river in river_mapnames:
+
+        local_elevation = river + '_elevation'
+        local_relief = river + '_relief'
+        local_shaded_relief = river + '_shaded_relief'
+        local_skyview = river + '_skyview'
+        local_colorized_skyview = river + '_colorized_skyview'
+        local_shaded_skyview = river + '_shaded_skyview'
+        local_streams = river + '_streams'
+        local_accumulation = river + '_accumulation'
+        local_order = river + '_order'
+        local_landcover = river + '_landcover'
+        local_shaded_landcover = river + '_shaded_landcover'
+
+        # set region
+        gscript.run_command('g.region',
+            vector=river,
+            res=res)
+
+        # render shaded relief with streams
+        gscript.run_command('d.mon',
+            start=driver,
+            width=width,
+            height=height,
+            output=os.path.join(results, local_streams+".png"),
+            overwrite=overwrite)
+        gscript.run_command('d.rast',
+            map=local_shaded_skyview)
+        gscript.run_command('d.rast',
+            map=local_order)
+        gscript.run_command('d.vect',
+            map=snapped_stations,
+            display='shape',
+            icon='basic/circle',
+            size=2,
+            color='blue')
+        gscript.run_command('d.legend',
+            raster=local_elevation,
+            fontsize=fontsize,
+            at=legend_coord)
+        gscript.run_command('d.mon', stop=driver)
+
+        # render landcover with streams
+        gscript.run_command('d.mon',
+            start=driver,
+            width=width,
+            height=height,
+            output=os.path.join(results, local_landcover+".png"),
+            overwrite=overwrite)
+        gscript.run_command('d.rast',
+            map=local_shaded_landcover)
+        gscript.run_command('d.rast',
+            map=local_order)
+        gscript.run_command('d.vect',
+            map=snapped_stations,
+            display='shape',
+            icon='basic/circle',
+            size=2,
+            color='blue')
+        gscript.run_command('d.legend',
+            raster=local_landcover,
+            fontsize=fontsize,
+            range=(1,9),
+            at=legend_coord)
+        gscript.run_command('d.mon', stop=driver)
+
+def stats():
+    "write stats for each basin as csv file"
+
+    # create lists
+    mean_elevation = []
+    min_elevation = []
+    max_elevation = []
+    mean_slope = []
+    min_slope = []
+    max_slope = []
+
+    # csv filepath
+    topographic_stats = os.path.join(results, 'topograhic_stats.csv')
+
+    # write statistics to csv file
+    with open(topographic_stats, 'wb') as csvfile:
+        stats_writer = csv.writer(csvfile,
+            delimiter=',',
+            quotechar='|',
+            quoting=csv.QUOTE_MINIMAL)
+
+        # write headers
+        stats_writer.writerow(['River',
+            'Mean elevation',
+            'Min elevation',
+            'Max elevation',
+            'Mean slope',
+            'Max slope',
+            'Min slope'])
+
+        # loop through rivers
+        for index, river in enumerate(river_mapnames):
+
+            # set local variables
+            local_elevation = river + '_elevation'
+            local_slope = river + '_slope'
+            local_landcover = river + '_landcover'
+
+            # set region
+            gscript.run_command('g.region',
+                vector=river,
+                res=res)
+
+            # compute elevation statistics
+            univar = gscript.parse_command('r.univar',
+                map=local_elevation,
+                separator='newline',
+                flags='g')
+            mean_elevation.append(univar['mean'])
+            min_elevation.append(univar['min'])
+            max_elevation.append(univar['max'])
+
+            # compute slope statistics
+            univar = gscript.parse_command('r.univar',
+                map=local_slope,
+                separator='newline',
+                flags='g')
+            mean_slope.append(univar['mean'])
+            min_slope.append(univar['min'])
+            max_slope.append(univar['max'])
+
+            # compute landcover statistics
+            gscript.run_command('r.report',
+                map=local_landcover,
+                units='me,p',
+                flags='n',
+                output=os.path.join(results, local_landcover+".txt"),
+                overwrite=overwrite)
+
+            # write data
+            stats_writer.writerow([rivers[index],
+                mean_elevation[index],
+                min_elevation[index],
+                max_elevation[index],
+                mean_slope[index],
+                min_slope[index],
+                max_slope[index]])
+
+
 def dependencies():
     """try to install required add-ons"""
 
@@ -555,6 +828,12 @@ def cleanup():
     try:
         # remove mask
         gscript.run_command('r.mask', raster='MASK', flags='r')
+    except CalledModuleError:
+        pass
+
+    try:
+        # stop cairo monitor
+        gscript.run_command('d.mon', stop=driver)
     except CalledModuleError:
         pass
 

@@ -16,7 +16,6 @@ import csv
 import atexit
 import grass.script as gscript
 from grass.exceptions import CalledModuleError
-# import matplotlib.pyplot as plt
 
 # set graphics driver
 driver = "cairo"

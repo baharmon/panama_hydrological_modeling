@@ -33,10 +33,10 @@ mapset = env['MAPSET']
 
 # set region
 gscript.run_command('g.region',
-    n='10:47:10N',
-    s='5:37:20N',
-    e='75:37:32.973365W',
-    w='82:27:58.600174W',
+    n='10.78611111',
+    s='5.62222222',
+    e='-75.62555556',
+    w='-82.95777778',
     save='region',
     overwrite=overwrite)
 
@@ -48,7 +48,7 @@ for (dirpath, dirnames, filenames) in os.walk(landcover_path):
     landcover_files.extend(sorted(filenames))
     break
 
-for index, year in enumerate(range(1998,2015)):
+for index, year in enumerate(range(1998,2016)):
 
     # set path
     landcover_filepath = os.path.join(landcover_path, landcover_files[index])

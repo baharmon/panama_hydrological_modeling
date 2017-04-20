@@ -84,8 +84,9 @@ streams = 'streams'
 direction = 'direction'
 basins = 'basins'
 step = 50
-input_landcover = 'panama_300m_landcover'
-landcover = 'landcover'
+landcover = 'landcover_'
+start = 1998
+end = 2016
 
 # rendering parameters
 width = 1500
@@ -119,9 +120,9 @@ def main():
 
     # render()
 
-    # render_basins()
+    render_basins()
 
-    stats()
+    # stats()
 
     atexit.register(cleanup)
     sys.exit(0)
@@ -251,23 +252,38 @@ def landcover_analysis():
         w=w,
         res=res)
 
-    # recode landcover
-    gscript.run_command('r.recode',
-        input=input_landcover,
-        output=landcover,
-        rules=landcover_recode,
-        overwrite=overwrite)
+    # loop through landcover time series
+    for index, year in enumerate(range(start,end)):
 
-    # set color table
-    gscript.run_command('r.colors',
-        map=landcover,
-        rules=landcover_color)
+        # recode landcover
+        gscript.run_command('r.recode',
+            input=landcover+str(year)+'@PERMANENT',
+            output='temporary',
+            rules=landcover_recode,
+            overwrite=overwrite)
 
-    # define categories
-    gscript.run_command('r.category',
-        map=landcover,
-        separator='pipe',
-        rules=landcover_categories)
+        # update landcover raster
+        gscript.run_command('r.mapcalc',
+            expression='{updated} = {temporary}'.format(updated=landcover+str(year),
+                temporary='temporary'),
+            overwrite=overwrite)
+
+        # set color table
+        gscript.run_command('r.colors',
+            map=landcover+str(year),
+            rules=landcover_color)
+
+        # define categories
+        gscript.run_command('r.category',
+            map=landcover+str(year),
+            separator='pipe',
+            rules=landcover_categories)
+
+        # remove temporary maps
+        gscript.run_command('g.remove',
+            type='raster',
+            name='temporary',
+            flags='f')
 
 def extract_basins():
     """extract each basin by name"""
@@ -373,51 +389,55 @@ def basin_topographic_analysis():
 def basin_landcover_analysis():
     """compute landcover parameters for each basin"""
 
-    for river in river_mapnames:
+    # loop through landcover time series
+    for index, year in enumerate(range(start,end)):
 
-        local_landcover = river + '_landcover'
-        local_shaded_skyview = river + '_shaded_skyview'
-        local_shaded_landcover = river + '_shaded_landcover'
+        # loop through river basins
+        for river in river_mapnames:
 
-        # set region
-        gscript.run_command('g.region',
-            vector=river,
-            res=res)
+            local_landcover = river + '_landcover_' + str(year)
+            local_shaded_skyview = river + '_shaded_skyview'
+            local_shaded_landcover = river + '_shaded_landcover'
 
-        # set mask
-        gscript.run_command('r.mask',
-            vector=river)
+            # set region
+            gscript.run_command('g.region',
+                vector=river,
+                res=res)
 
-        # clip local landcover
-        gscript.run_command('r.mapcalc',
-            expression='{local_landcover} = {landcover}'.format(local_landcover=local_landcover,
-                landcover=landcover),
-            overwrite=overwrite)
+            # set mask
+            gscript.run_command('r.mask',
+                vector=river)
 
-        # set color table
-        gscript.run_command('r.colors',
-            map=local_landcover,
-            rules=landcover_color)
+            # clip local landcover
+            gscript.run_command('r.mapcalc',
+                expression='{local_landcover} = {landcover}'.format(local_landcover=local_landcover,
+                    landcover=landcover+str(year)),
+                overwrite=overwrite)
 
-        # define categories
-        gscript.run_command('r.category',
-            map=local_landcover,
-            separator='pipe',
-            rules=landcover_categories)
+            # set color table
+            gscript.run_command('r.colors',
+                map=local_landcover,
+                rules=landcover_color)
 
-        # landcover with shaded relief
-        gscript.run_command('r.shade',
-            shade=local_shaded_skyview,
-            color=local_landcover,
-            output=local_shaded_landcover,
-            brighten=skyview_brighten,
-            overwrite=overwrite)
+            # define categories
+            gscript.run_command('r.category',
+                map=local_landcover,
+                separator='pipe',
+                rules=landcover_categories)
 
-        try:
-            # remove mask
-            gscript.run_command('r.mask', raster='MASK', flags='r')
-        except CalledModuleError:
-            pass
+            # landcover with shaded relief
+            gscript.run_command('r.shade',
+                shade=local_shaded_skyview,
+                color=local_landcover,
+                output=local_shaded_landcover,
+                brighten=skyview_brighten,
+                overwrite=overwrite)
+
+            try:
+                # remove mask
+                gscript.run_command('r.mask', raster='MASK', flags='r')
+            except CalledModuleError:
+                pass
 
 
 def basin_climate_analysis():
@@ -817,9 +837,7 @@ def cleanup():
         # remove temporary maps
         gscript.run_command('g.remove',
             type='raster',
-            name=['temp',
-                'a',
-                'b'],
+            name='temporary',
             flags='f')
     except CalledModuleError:
         pass

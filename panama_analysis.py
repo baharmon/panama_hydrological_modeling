@@ -84,7 +84,6 @@ streams = 'streams'
 direction = 'direction'
 basins = 'basins'
 step = 50
-landcover = 'landcover_'
 start = 1998
 end = 2016
 
@@ -112,17 +111,17 @@ def main():
 
     # basin_hydrologic_analysis()
 
-    # basin_landcover_analysis()
+    basin_landcover_analysis()
 
     # basin_climate_analysis()
 
     # basin_morphometric_analysis()
 
-    # render()
+    render()
 
     render_basins()
 
-    # stats()
+    stats()
 
     atexit.register(cleanup)
     sys.exit(0)
@@ -257,25 +256,25 @@ def landcover_analysis():
 
         # recode landcover
         gscript.run_command('r.recode',
-            input=landcover+str(year)+'@PERMANENT',
+            input='landcover_'+str(year)+'@PERMANENT',
             output='temporary',
             rules=landcover_recode,
             overwrite=overwrite)
 
         # update landcover raster
         gscript.run_command('r.mapcalc',
-            expression='{updated} = {temporary}'.format(updated=landcover+str(year),
+            expression='{updated} = {temporary}'.format(updated='landcover_'+str(year),
                 temporary='temporary'),
             overwrite=overwrite)
 
         # set color table
         gscript.run_command('r.colors',
-            map=landcover+str(year),
+            map='landcover_'+str(year),
             rules=landcover_color)
 
         # define categories
         gscript.run_command('r.category',
-            map=landcover+str(year),
+            map='landcover_'+str(year),
             separator='pipe',
             rules=landcover_categories)
 
@@ -397,7 +396,7 @@ def basin_landcover_analysis():
 
             local_landcover = river + '_landcover_' + str(year)
             local_shaded_skyview = river + '_shaded_skyview'
-            local_shaded_landcover = river + '_shaded_landcover'
+            local_shaded_landcover = river + '_shaded_landcover_' + str(year)
 
             # set region
             gscript.run_command('g.region',
@@ -411,7 +410,7 @@ def basin_landcover_analysis():
             # clip local landcover
             gscript.run_command('r.mapcalc',
                 expression='{local_landcover} = {landcover}'.format(local_landcover=local_landcover,
-                    landcover=landcover+str(year)),
+                    landcover='landcover_'+str(year)),
                 overwrite=overwrite)
 
             # set color table
@@ -627,8 +626,7 @@ def render():
     gscript.run_command('d.vect',
         map=streams,
         display='shape',
-        width=2,
-        #icon='basic/circle',
+        #width=1,
         size=0,
         color='blue')
     gscript.run_command('d.legend',
@@ -637,9 +635,43 @@ def render():
         at=legend_coord)
     gscript.run_command('d.mon', stop=driver)
 
+    # loop through landcover time series
+    for index, year in enumerate(range(start,end)):
+
+        # render landcover with streams
+        gscript.run_command('d.mon',
+            start=driver,
+            width=width,
+            height=height,
+            output=os.path.join(results, 'landcover_'+str(year)+'.png'),
+            overwrite=overwrite)
+        gscript.run_command('d.shade',
+            shade=relief,
+            color='landcover_'+str(year),
+            brighten=brighten)
+        gscript.run_command('d.vect',
+            map=streams,
+            display='shape',
+            #width=1,
+            size=0,
+            color='blue')
+        gscript.run_command('d.vect',
+            map=snapped_stations,
+            display='shape',
+            icon='basic/circle',
+            size=2,
+            color='blue')
+        gscript.run_command('d.legend',
+            raster='landcover_'+str(year),
+            fontsize=fontsize,
+            range=(1,9),
+            at=legend_coord)
+        gscript.run_command('d.mon', stop=driver)
+
 def render_basins():
     """render maps for each basin"""
 
+    # loop through river basins
     for river in river_mapnames:
 
         local_elevation = river + '_elevation'
@@ -651,8 +683,6 @@ def render_basins():
         local_streams = river + '_streams'
         local_accumulation = river + '_accumulation'
         local_order = river + '_order'
-        local_landcover = river + '_landcover'
-        local_shaded_landcover = river + '_shaded_landcover'
 
         # set region
         gscript.run_command('g.region',
@@ -682,29 +712,35 @@ def render_basins():
             at=legend_coord)
         gscript.run_command('d.mon', stop=driver)
 
-        # render landcover with streams
-        gscript.run_command('d.mon',
-            start=driver,
-            width=width,
-            height=height,
-            output=os.path.join(results, local_landcover+".png"),
-            overwrite=overwrite)
-        gscript.run_command('d.rast',
-            map=local_shaded_landcover)
-        gscript.run_command('d.rast',
-            map=local_order)
-        gscript.run_command('d.vect',
-            map=snapped_stations,
-            display='shape',
-            icon='basic/circle',
-            size=2,
-            color='blue')
-        gscript.run_command('d.legend',
-            raster=local_landcover,
-            fontsize=fontsize,
-            range=(1,9),
-            at=legend_coord)
-        gscript.run_command('d.mon', stop=driver)
+        # loop through landcover time series
+        for index, year in enumerate(range(start,end)):
+
+            local_landcover = river + '_landcover_' + str(year)
+            local_shaded_landcover = river + '_shaded_landcover_' + str(year)
+
+            # render landcover with streams
+            gscript.run_command('d.mon',
+                start=driver,
+                width=width,
+                height=height,
+                output=os.path.join(results, local_landcover+".png"),
+                overwrite=overwrite)
+            gscript.run_command('d.rast',
+                map=local_shaded_landcover)
+            gscript.run_command('d.rast',
+                map=local_order)
+            gscript.run_command('d.vect',
+                map=snapped_stations,
+                display='shape',
+                icon='basic/circle',
+                size=2,
+                color='blue')
+            gscript.run_command('d.legend',
+                raster=local_landcover,
+                fontsize=fontsize,
+                range=(1,9),
+                at=legend_coord)
+            gscript.run_command('d.mon', stop=driver)
 
 def stats():
     "write stats for each basin as csv file"
@@ -742,7 +778,6 @@ def stats():
             # set local variables
             local_elevation = river + '_elevation'
             local_slope = river + '_slope'
-            local_landcover = river + '_landcover'
 
             # set region
             gscript.run_command('g.region',
@@ -767,14 +802,6 @@ def stats():
             min_slope.append(univar['min'])
             max_slope.append(univar['max'])
 
-            # compute landcover statistics
-            gscript.run_command('r.report',
-                map=local_landcover,
-                units='me,p',
-                flags='n',
-                output=os.path.join(results, local_landcover+".txt"),
-                overwrite=overwrite)
-
             # write data
             stats_writer.writerow([rivers[index],
                 mean_elevation[index],
@@ -784,6 +811,18 @@ def stats():
                 min_slope[index],
                 max_slope[index]])
 
+            # loop through landcover time series
+            for index, year in enumerate(range(start,end)):
+
+                local_landcover = river + '_landcover_' + str(year)
+
+                # compute landcover statistics
+                gscript.run_command('r.report',
+                    map=local_landcover,
+                    units='me,p',
+                    flags='n',
+                    output=os.path.join(results, local_landcover+".txt"),
+                    overwrite=overwrite)
 
 def dependencies():
     """try to install required add-ons"""

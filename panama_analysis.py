@@ -43,6 +43,7 @@ results = os.path.join(gisdbase, location, 'results')
 # create lists of river names
 rivers = ['Rio Trinidad',
     'Rio Cano Quebrado',
+    'Rio Ciri Grande',
     'Rio Gatun',
     'Rio Boqueron',
     'Rio Pequini',
@@ -50,6 +51,7 @@ rivers = ['Rio Trinidad',
     'Rio Indio Este']
 river_mapnames = ['rio_trinidad',
     'rio_canoquebrado',
+    'rio_cirigrande',
     'rio_gatun',
     'rio_boqueron',
     'rio_pequini',
@@ -105,11 +107,11 @@ def main():
 
     # climate_analysis()
 
-    # extract_basins()
+    extract_basins()
 
-    # basin_topographic_analysis()
+    basin_topographic_analysis()
 
-    # basin_hydrologic_analysis()
+    basin_hydrologic_analysis()
 
     basin_landcover_analysis()
 

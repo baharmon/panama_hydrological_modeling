@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-@brief: Import landcover
+@brief: Reproject global landcover data for Panama
 
 This program is free software under the GNU General Public License
 (>=v2). Read the file COPYING that comes with GRASS for details.

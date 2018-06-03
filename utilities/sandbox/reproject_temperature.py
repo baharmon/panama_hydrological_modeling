@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-@brief: Import landcover
+@brief: Reproject global temperature data for Panama
 
 This program is free software under the GNU General Public License
 (>=v2). Read the file COPYING that comes with GRASS for details.
@@ -30,33 +30,27 @@ env['GRASS_MESSAGE_FORMAT'] = 'standard'
 gisdbase = env['GISDBASE']
 location = env['LOCATION_NAME']
 mapset = env['MAPSET']
+res=1000, #50000
 
 # set region
 gscript.run_command('g.region',
-    n='10.78611111',
-    s='5.62222222',
-    e='-75.62555556',
-    w='-82.95777778',
-    save='region',
+    raster='panama_30m_dem',
+    res=res,
     overwrite=overwrite)
 
-# set path
-landcover_path = os.path.join(gisdbase, 'esa_landcover')
-
-landcover_files = []
-for (dirpath, dirnames, filenames) in os.walk(landcover_path):
-    landcover_files.extend(sorted(filenames))
-    break
-
-for index, year in enumerate(range(1998,2016)):
-
-    # set path
-    landcover_filepath = os.path.join(landcover_path, landcover_files[index])
-    print landcover_filepath
-
-    # import
-    gscript.run_command('r.import',
-        extent='region',
-        input=landcover_filepath,
-        output='landcover_'+str(year),
-        overwrite=overwrite)
+# reproject temperature rasters
+for year in range(1998,2016):
+    for month in range(01,13):
+        try:
+            # import
+            gscript.run_command('r.proj',
+                location='worldlocation',
+                mapset='temperature',
+                input='temperature_'+str(year)+'_'+str(month),
+                output='temperature_'+str(year)+'_'+str(month),
+                method='bilinear',
+                memory='9000',
+                resolution=res,
+                overwrite=overwrite)
+        except:
+            pass

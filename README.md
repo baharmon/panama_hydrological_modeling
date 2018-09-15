@@ -6,8 +6,6 @@ A python script for hydrological modeling and morphometric analysis in
 
 ![Study Area](images/study_area_landcover_labeled.png)
 
-![Study Area](images/landcover.gif)
-
 ## License
 GNU General Public License >= version 2
 
@@ -16,6 +14,8 @@ The data and results for this project are hosted
 in the repository https://osf.io/bx5y6/
 on the Open Science Framework
 under the CC0 1.0 Universal license.
+
+![Study Area](images/landcover.gif)
 
 ## Dependencies
 Before running the script install the following GRASS GIS add-on modules with

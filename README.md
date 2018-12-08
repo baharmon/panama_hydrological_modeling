@@ -1,5 +1,4 @@
-[![License: GPL v2](https://img.shields.io/badge/License-GPL%20v2-blue.svg)]
-(https://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html)
+[![License: GPL v2](https://img.shields.io/badge/License-GPL%20v2-blue.svg)](https://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html)
 
 # Hydrological modeling and morphometric analysis of the Greater Panama Canal Watershed in GRASS GIS
 A python script for hydrological modeling, morphometric analysis,
